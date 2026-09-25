@@ -1,6 +1,6 @@
 # Jev usage router for Grok Bot
 
-This independent community project is not affiliated with, endorsed by, or maintained by OpenJEV. This is a recipe for a Grok Bot skill, **not** an automatically installed skill. Follow the [OpenJEV quick start](../README.md) before using it. OpenJEV is the default provider; TypeSafe is an optional alternative configured in the router, not a second service to call. Grok Bot must have access to the repo and the selected provider's key in the router process environment.
+This independent community project is not affiliated with, endorsed by, or maintained by OpenJEV. This is a recipe for a Grok Bot skill, **not** an automatically installed skill. Follow the [OpenJEV quick start](../README.md) before using it. OpenJEV is the default provider; TypeSafe is an optional alternative configured in the router, not a second service to call. Grok Bot must have access to the installed repo. For live routing, the router process must receive the selected provider's key as an environment variable; saving the skill does not provide that key. If secure process-level key delivery is unavailable, do not run live routing.
 
 ## Before each expensive task
 
@@ -19,7 +19,7 @@ This independent community project is not affiliated with, endorsed by, or maint
 
 Optional state fields: `cached_note`, `prior_error`, and `constraints`. Never include a key, private conversation, or sensitive raw task text: CLI arguments can appear in process listings.
 
-3. With command-execution permission, run `.venv/bin/python -m src.cli '<redacted JSON state>'` **from the installed repo directory on the computer with the provider key**. Parse `action`, `mode`, and `details` from the JSON output. If the repo, key or execution access is missing, report that routing could not run and continue normally; do not invent a result.
+3. With command-execution permission, run `.venv/bin/python -m src.cli '<redacted JSON state>'` **from the installed repo directory on the computer with the provider key**. Parse `action`, `jev_used`, `mode`, and `details` from the actual JSON output. If `jev_used` is false, report any `details.error` as a routing failure, not as a successful provider recommendation. If the repo, key or execution access is missing, report that routing could not run and continue normally; do not invent a result.
 4. If `mode` is `shadow`, report the suggestion separately and proceed using normal Grok Bot judgment. Only in `active` mode follow the action below. Always apply normal approval requirements independently of the router.
 
 ## Actions in active mode

@@ -13,7 +13,7 @@ The providers are alternative paths to Jev, not a sequence or automatic failover
 
 ## Grok Bot boundary
 
-Grok Bot must wake, invoke the installed skill, and run the router command in the environment containing the selected key. The router does not browse, perform research, run subagents or take external actions. In `shadow` mode the returned action is advice; in `active` mode the skill instructs Grok Bot to honor it. The integration cannot enforce a Bot that ignores its skill and cannot reduce the Bot's wake-up cost. Account changes and other irreversible actions still require independent human confirmation.
+Grok Bot must wake, invoke a saved skill created from the recipe, and run the router command in the environment containing the selected key. Saving a skill neither installs this repository nor injects its key. Grok Bot's documentation does not establish a generic mechanism for securely injecting arbitrary environment variables into Python subprocesses; confirm that capability in the actual runtime before enabling live routing. The router does not browse, perform research, run subagents or take external actions. In `shadow` mode the returned action is advice; in `active` mode the skill instructs Grok Bot to honor it. The integration cannot enforce a Bot that ignores its skill and cannot reduce the Bot's wake-up cost. Account changes and other irreversible actions still require independent human confirmation.
 
 ## Failure and data handling
 

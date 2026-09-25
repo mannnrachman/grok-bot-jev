@@ -1,14 +1,16 @@
-# Grok Bot router — OpenJEV by default
+# Grok Bot task router — OpenJEV by default
 
-This fork asks [OpenJEV](https://openjev.sh/docs) for a small set of routing decisions before Grok Bot does expensive work. The router suggests actions; it does not replace Grok Bot's model or execute the task. **Start with OpenJEV.** TypeSafe is an optional alternative you can select later; the two providers are never called together and there is no automatic switch on failure.
+This community project lets Grok Bot ask [OpenJEV](https://openjev.sh/docs) for a routing *recommendation* before expensive work. For example, it may suggest reusing a fresh result, stopping a repeated failure, limiting research, or asking a human. **It does not automatically run inside Grok Bot.** The Bot must invoke the router and follow its result. OpenJEV is the default; TypeSafe is a separate, optional provider choice.
 
-**Independent project:** this community fork is not affiliated with, endorsed by, or maintained by OpenJEV. Links to OpenJEV documentation describe the external API, not a partnership or an official Grok Bot integration.
+**Independent project:** not affiliated with, endorsed by, or maintained by OpenJEV. This is not an official Grok Bot integration.
 
-![Grok Bot + Jev dashboard](media/jev-grok-bot-dashboard.png)
+![Router dashboard illustration](media/jev-grok-bot-dashboard.png)
 
-## Quick start: OpenJEV
+## Start here: OpenJEV
 
-Install Python 3.10+ and run these commands on the computer that will actually execute the router. Grok Bot's [cloud computer is separate from your laptop](https://cursor.com/docs/grok-bot/work#your-local-computer-is-separate).
+### 1. Install where the router will run
+
+Use Python 3.10+ on the machine whose terminal Grok Bot will use. Grok Bot's [cloud computer](https://cursor.com/docs/grok-bot/work#the-computer-and-apps) is separate from your laptop; installing this repository locally does not install it there.
 
 ```bash
 git clone https://github.com/mannnrachman/grok-bot-jev.git
@@ -19,36 +21,38 @@ cp config.example.yaml config.yaml
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-The example config already sets `provider: openjev` and `mode: shadow`. Set `OPENJEV_API_KEY` securely **in the environment of the process running the router**. Never place the key in chat, JSON state, command arguments, or Git. `requirements.txt` installs only `pyyaml`: OpenJEV uses Python's standard HTTP client. Its [official quickstart](https://openjev.sh/docs) says *no SDK required; use any HTTP client*. The TypeSafe SDK is **not** used for OpenJEV.
+The example starts with `provider: openjev` and `mode: shadow`. The only package in `requirements.txt` is `pyyaml`. OpenJEV uses standard-library HTTP; its [quickstart](https://openjev.sh/docs) says no SDK is required.
 
-### Check without contacting a provider
+### 2. Make a key available to the router
 
-Temporarily set `enabled: false` in `config.yaml`, then run:
+Create an OpenJEV API key using the [OpenJEV dashboard](https://openjev.sh/dashboard). The running Python process needs `OPENJEV_API_KEY` in **its own environment**. The repository does **not** read `.env`, `config.yaml`, or a saved Grok Bot skill for credentials. A key set in a terminal on your laptop is not automatically available in Grok Bot's cloud terminal, and a key set in one shell session may not be present in a later Bot command.
+
+Do not paste the key into ordinary Bot chat, a CLI argument, a Git file, or a skill. [Grok Bot's computer guide](https://cursor.com/docs/grok-bot/work#take-over-for-sensitive-steps) describes secure secret requests *for supported connections*, but does not document automatic injection of such secrets as `OPENJEV_API_KEY` for arbitrary Python subprocesses. **If you cannot provide that environment variable securely and verify that the Bot-run process receives it, stop here:** offline tests will still work, but live routing will fall back as `missing_api_key`. The cloud computer is shared among your own Bots; treat credentials on it accordingly.
+
+### 3. Verify without spending an API request
+
+The unit tests above are offline. To check the CLI and installation without a provider request, temporarily change `enabled: false` in your ignored `config.yaml`, then run from the repository directory:
 
 ```bash
 .venv/bin/python -m src.cli '{"goal":"Summarize public release notes","kind":"research"}'
 ```
 
-Expect `"action": "proceed_full"` and `"jev_used": false`. Restore `enabled: true` only when you intend to send the redacted task state to OpenJEV. With the router enabled, the same CLI command and `scripts/dry_run.py` make **live provider requests**. Task text passed on the CLI can be visible in process listings: use only public or redacted summaries.
+The result should contain `"action": "proceed_full"` and `"jev_used": false`. **This checks bypass only, not OpenJEV authentication or response quality.** Restore `enabled: true` before an intentional live run. With the router enabled, this command and `scripts/dry_run.py` may send data to the selected provider. Only use public or redacted task summaries: CLI arguments may be visible in process listings.
 
-## Connect to Grok Bot
+### 4. Have Grok Bot invoke it
 
-The [router skill recipe](skill/jev-usage-router.SKILL.md) does not install itself. Give Grok Bot access to this repository **on the computer where the key is configured**, then ask the Bot to save that recipe as a private skill named `jev-usage-router`. Review the saved instructions. Invoke it with `/jev-usage-router` in the Bot composer; [Grok Bot's skill instructions](https://cursor.com/docs/grok-bot/work#skills-and-routines) say to enable a missing private skill under **Settings → Plugins → Yours**.
+The [router skill recipe](skill/jev-usage-router.SKILL.md) is instructions, **not an installed skill**. In Grok Bot, give a Bot access to the cloned repository on the computer that runs the router. Provide that recipe and ask the Bot to save it as a private skill named `jev-usage-router`; inspect the saved skill before using it. [Grok Bot's guide](https://cursor.com/docs/grok-bot/work#skills-and-routines) says to invoke a saved skill with `/` in the composer and to enable missing private skills in **Settings → Plugins → Yours**.
 
-For a first run, use a non-sensitive task and keep `mode: shadow`: ask the Bot to report the router's recommended action separately from what it actually did. The Bot must be able to execute `.venv/bin/python -m src.cli '<redacted JSON state>'` **from the repository directory**. If command execution or secure access to the key is unavailable, saving the skill alone cannot make the integration work. In `shadow`, recommendations are advisory; in `active`, the Bot must honor them itself. Switch to `active` only after comparing actions, errors, latency and usage on representative tasks. Roll back with `enabled: false` or bypass one request using `bypass jev`.
+Start with a **public, non-sensitive** task and `mode: shadow`. Ask the Bot to invoke `/jev-usage-router`, run the CLI from the installed repository, and show the CLI's actual `action`, `jev_used`, `mode`, and `details.provider` before it proceeds normally. If the output says `jev_used: false`, check `details.error` (for example, `missing_api_key`); that is **not** proof of a successful OpenJEV call. A recommendation with `jev_used: true` shows that the router accepted a provider response, but does not prove the recommendation was correct. We have not verified this complete Grok Bot workflow in a live Bot session.
 
-## Optional alternative: TypeSafe
+`shadow` only reports advice. Switch to `mode: active` **only after** checking decisions against representative tasks, latency, failures and usage; then the Bot must actually honor `action`. Neither a skill nor this code can force a Bot that ignores it. To stop, set `enabled: false` in `config.yaml` or say `bypass jev` for a single request. Actions never override normal approvals for payments, messages, deletion, or account changes.
 
-This is a separate choice, **not an additional step in OpenJEV setup**. To select it instead:
+## TypeSafe: optional alternative, not part of OpenJEV setup
 
-1. Install `typesafe-sdk` separately in the same Python environment.
-2. Set `provider: typesafe` in `config.yaml`; leave `model` unset (default `jev-latest`).
-3. Supply `TYPESAFE_API_KEY` securely to the router process instead of `OPENJEV_API_KEY`.
+If you intentionally want to use TypeSafe **instead of** OpenJEV, install `typesafe-sdk` separately in the same Python environment, set `provider: typesafe` in `config.yaml` (leave `model` unset for `jev-latest`), and make `TYPESAFE_API_KEY` available to the router process. See the [TypeSafe SDK documentation](https://docs.typesafe.ai/sdk/python.md). Only one provider is called per request; failures do **not** switch providers. The TypeSafe SDK is not needed for OpenJEV. This alternative is covered by offline mocks; an end-to-end SDK call has not been verified here.
 
-The [official TypeSafe Python SDK](https://docs.typesafe.ai/sdk/python.md) is imported only on this path. Do not send an OpenJEV key to TypeSafe or a TypeSafe key to OpenJEV. A mismatched provider/model fails before a request; errors return `proceed_full` rather than switching providers. TypeSafe's SDK retry policy differs from OpenJEV's HTTP retry policy; see [architecture](docs/architecture.md).
+## What it sends and returns
 
-## Scope and reference
+For OpenJEV, the router sends a short `state` and five independent typed `questions` to `POST https://api.openjev.sh/v1/systemone` and reads the returned `answers`. The `openjev` model alias is not pinned to a version. Choice returns a label and probabilities, Score can be fractional, and Noul is a yes probability—not intensity; confidence is not a correctness guarantee. Application policy chooses the action; OpenJEV does not execute it. See the [official quickstart](https://openjev.sh/docs), [advanced reference](https://openjev.sh/docs/advanced), [use cases](https://openjev.sh/use-cases), and [full text reference](https://openjev.sh/llm.txt).
 
-OpenJEV receives explicit `state` and five independent `questions` at `POST https://api.openjev.sh/v1/systemone`; results appear under `answers`. Choice supplies a label, probabilities and confidence; Score can be fractional; Noul is a yes probability, not an intensity scale. Confidence is not guaranteed correctness. The application—not Jev—performs actions and confirms anything irreversible. See the [quickstart](https://openjev.sh/docs), [advanced reference](https://openjev.sh/docs/advanced), [use cases](https://openjev.sh/use-cases) and [full text reference](https://openjev.sh/llm.txt).
-
-The router recommends `reuse_cache`, `stop_retry`, `run_deterministic`, `chat_only`, `research_capped`, `allow_subagent`, `ask_human`, or `proceed_full`. Missing keys, malformed answers, and exhausted provider errors fall back to `proceed_full` with `jev_used: false`; normal approval requirements still apply. This is not a pre-wake hook, and the [local A/B examples](examples/ab_results.md) do not prove Grok Bot token savings. See the [demo](media/jev-grok-bot-demo.mp4), [media notes](media/README.md), [contributing guide](CONTRIBUTING.md), and [license](LICENSE).
+The router may recommend `reuse_cache`, `stop_retry`, `run_deterministic`, `chat_only`, `research_capped`, `allow_subagent`, `ask_human`, or `proceed_full`. Missing credentials, invalid answers or exhausted provider errors return `proceed_full` with `jev_used: false`. See [architecture and failure handling](docs/architecture.md) and the [skill action rules](skill/jev-usage-router.SKILL.md). [Local A/B examples](examples/ab_results.md) are proxy measurements, not proof of Grok Bot token savings. [Demo](media/jev-grok-bot-demo.mp4) · [Media](media/README.md) · [Contributing](CONTRIBUTING.md) · [License](LICENSE).
