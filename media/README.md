@@ -1,6 +1,6 @@
 # Media
 
-Visualization assets for the Grok Bot + OpenJEV router:
+Visualization assets for the Grok Bot + Jev router (TypeSafe SDK or OpenJEV HTTP):
 
 - `jev-grok-bot-demo.mp4`: demonstration video
 - `jev-grok-bot-dashboard.png`: dashboard image
