@@ -1,43 +1,20 @@
-# Architecture
+# Router architecture
 
-## Architecture A: skill gates around Grok Bot
+## One provider per request
 
-This package implements an external decision layer rather than changing Grok Bot. A Grok Bot skill prepares a small task state, calls `src.cli` (or the equivalent Python function), and then applies the returned action before expensive work.
+Grok Bot prepares a short redacted task state and invokes `src.cli`. The router checks `enabled` and bypass markers, then chooses **one** configured provider:
 
-```text
-user request
-    |
-    v
-Grok Bot wakes and loads the skill
-    |
-    +--> kill switch / bypass marker? ---- yes ---> normal Grok Bot path
-    |
-    v
-TypeSafe SDK or OpenJEV HTTP systemone(state, questions)
-    |
-    v
-router policy: cache | stop | deterministic | chat | capped research |
-                subagent | human approval | full work
-    |
-    v
-Grok Bot executes the action (active) or treats it as advice (shadow)
-```
+- **OpenJEV (default):** standard-library HTTP to `POST https://api.openjev.sh/v1/systemone`, using `OPENJEV_API_KEY` and model `openjev`. No SDK is required.
+- **TypeSafe (optional alternative):** official `typesafe-sdk`, installed separately, using `TYPESAFE_API_KEY` and model `jev-latest`.
 
-The Python router normalizes state, defines five provider-neutral choice/noul/score questions, applies thresholds and limits, and appends a JSONL decision record without the task goal. `provider: openjev` (default) uses stdlib HTTP without an SDK, `OPENJEV_API_KEY`, and `openjev`; optional `provider: typesafe` requires separately installing the official `typesafe-sdk`, `TYPESAFE_API_KEY`, and `jev-latest`. Invalid provider/model combinations fall back without making a provider request. OpenJEV receives explicit state plus independent questions and returns `answers` keyed by question ID. Neither provider can reference a sibling question's answer in the same request. Credentials are read from the process environment only.
+The providers are alternative paths to Jev, not a sequence or automatic failover. The router shares the same five question definitions and decision policy across both paths. Questions are independent judgments against the same state: `intent` is a Choice, `complexity` a Score (fractional values allowed), and `reuse_cache`, `needs_subagent`, and `stop_retry` are Noul values. Provider answers are normalized before policy evaluation. Invalid provider/model pairs fail before a request. A missing key or failed call returns `proceed_full` with `jev_used: false` instead of querying the other provider.
 
-## What works
+## Grok Bot boundary
 
-- Cache reuse, bounded research, retry stopping, direct chat/lookup suggestions, subagent suggestions, and an approval gate for account-changing intents.
-- A configuration kill switch and explicit `shadow`/`active` modes.
-- Auditable decision records without storing the credential.
+Grok Bot must wake, invoke the installed skill, and run the router command in the environment containing the selected key. The router does not browse, perform research, run subagents or take external actions. In `shadow` mode the returned action is advice; in `active` mode the skill instructs Grok Bot to honor it. The integration cannot enforce a Bot that ignores its skill and cannot reduce the Bot's wake-up cost. Account changes and other irreversible actions still require independent human confirmation.
 
-## What does not
+## Failure and data handling
 
-- This is not a Grok Bot middleware or pre-wake interceptor. The bot must wake, load the skill, and make the router call.
-- Shadow mode cannot force behavior. Active mode relies on the installed skill honoring `route.action`.
-- Jev does not perform the browser/research/coding work and does not replace Grok Bot's confirmation or safety policy.
-- The included A/B results are local proxy measurements, not proof of lower Grok Bot token usage or a universal speedup.
+OpenJEV does not retry invalid credentials or requests (401/422). It retries 429, 503 and network errors once with bounded delay; numeric `Retry-After` is capped at five seconds. TypeSafe delegates its 429/529 retry handling to the official SDK. Non-JSON or invalid answers are rejected. The router logs action, provider, error category and derived signals rather than the task goal or API key. Nevertheless the state is sent to the selected provider and CLI process arguments may expose task text; pass only short public/redacted summaries.
 
-## Failure behavior
-
-If the router is disabled, bypassed, or unavailable, the integration returns `proceed_full` with `jev_used: false` to follow the normal Grok Bot path; it does not send state to another provider. Account and irreversible actions still require human confirmation independently of this router. The TypeSafe SDK owns its 429/529 retries; OpenJEV HTTP retries 429/503 or network errors once (bounded delay and numeric Retry-After). Authentication/validation failures (401/422), invalid JSON and invalid answers are not retried. Logs contain only action, provider, error category and derived signals; do not put sensitive state in a request.
+The [local A/B results](../examples/ab_results.md) are proxy measurements, not proof of universal savings. Start in `shadow`, compare routing decisions, latency, error rate and usage, then consider `active`. Use `enabled: false` to roll back either path. [OpenJEV reference](https://openjev.sh/docs/advanced) · [TypeSafe SDK](https://docs.typesafe.ai/sdk/python.md) · [setup and Grok Bot instructions](../README.md).
