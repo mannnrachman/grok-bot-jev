@@ -1,10 +1,10 @@
 # Copy this file to config.yaml and edit locally.
 # Kill switch: enabled: false, or include "bypass jev" in the request state.
 enabled: true
-# typesafe: official SDK with TYPESAFE_API_KEY (default)
-# openjev: public HTTP API with OPENJEV_API_KEY
-provider: typesafe
-# Default model depends on provider: jev-latest or openjev.
+# openjev (default): public HTTP API with OPENJEV_API_KEY
+# typesafe (optional): official SDK with TYPESAFE_API_KEY
+provider: openjev
+# Omit model to use openjev or jev-latest for the selected provider.
 # model: openjev
 
 # shadow logs advice; active requires the Grok Bot skill to honor route.action.

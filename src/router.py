@@ -37,7 +37,7 @@ def route_task(state: dict[str, Any]) -> dict[str, Any]:
     # Keep the kill-switch path dependency-free so it works during incidents.
     thr = cfg.get("thresholds") or {}
     limits = cfg.get("limits") or {}
-    provider = cfg.get("provider", "typesafe")
+    provider = cfg.get("provider", "openjev")
     models = {"typesafe": "jev-latest", "openjev": "openjev"}
     model = cfg.get("model") or models.get(provider)
 

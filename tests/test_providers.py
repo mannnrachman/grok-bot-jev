@@ -71,6 +71,14 @@ class ProviderTests(unittest.TestCase):
             with self.assertRaisesRegex(jev_client.ProviderError, "missing_api_key"):
                 jev_client.system_one({}, QUESTIONS, "openjev", "openjev")
 
+    def test_default_provider_is_openjev(self):
+        import src.config as config
+        with tempfile.TemporaryDirectory() as directory, patch.object(config, "CONFIG_PATH", Path(directory) / "missing.yaml"):
+            self.assertEqual(config.load_config()["provider"], "openjev")
+        with tempfile.TemporaryDirectory() as directory, patch.object(router, "load_config", return_value={"enabled": True, "mode": "shadow"}), patch.object(router, "resolve_log_path", return_value=Path(directory) / "runs.jsonl"), patch.object(router, "system_one", return_value=jev_client._normalize(answers(), QUESTIONS)) as call:
+            router.route_task({"goal": "hello"})
+            self.assertEqual(call.call_args.kwargs, {"provider": "openjev", "model": "openjev"})
+
     def test_provider_models_before_request(self):
         with patch.dict("os.environ", {"OPENJEV_API_KEY": "test", "TYPESAFE_API_KEY": "test"}), patch.object(jev_client, "urlopen") as call:
             for provider, model, category in (("unknown", "openjev", "invalid_provider"), ("openjev", "jev-latest", "invalid_model"), ("typesafe", "openjev", "invalid_model")):
