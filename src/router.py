@@ -37,8 +37,9 @@ def route_task(state: dict[str, Any]) -> dict[str, Any]:
     # Keep the kill-switch path dependency-free so it works during incidents.
     thr = cfg.get("thresholds") or {}
     limits = cfg.get("limits") or {}
-    provider = cfg.get("provider", "openjev")
-    model = cfg.get("model") or "openjev"
+    provider = cfg.get("provider", "typesafe")
+    models = {"typesafe": "jev-latest", "openjev": "openjev"}
+    model = cfg.get("model") or models.get(provider)
 
     # Normalize state for Jev
     jstate = {
@@ -90,9 +91,9 @@ def route_task(state: dict[str, Any]) -> dict[str, Any]:
     }
 
     try:
-        if provider != "openjev":
+        if provider not in models:
             raise ProviderError("invalid_provider")
-        if model != "openjev":
+        if not isinstance(model, str) or model != models[provider]:
             raise ProviderError("invalid_model")
         result = system_one(jstate, questions, provider=provider, model=model)
     except ProviderError as exc:

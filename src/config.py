@@ -15,7 +15,7 @@ def load_config() -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     data.setdefault("enabled", True)
     data.setdefault("mode", "shadow")
-    data.setdefault("provider", "openjev")
+    data.setdefault("provider", "typesafe")
     data.setdefault("model", None)
     data.setdefault("thresholds", {})
     data.setdefault("limits", {})

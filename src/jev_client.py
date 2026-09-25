@@ -110,9 +110,48 @@ def _openjev(state: dict[str, Any], questions: dict[str, Any], model: str) -> di
     raise ProviderError("network_error")
 
 
+def _typesafe(state: dict[str, Any], questions: dict[str, Any], model: str) -> dict[str, Any]:
+    ensure_api_key("typesafe")
+    try:
+        from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
+    except ImportError as exc:
+        raise ProviderError("sdk_missing") from exc
+    constructors = {"choice": Choice, "noul": Noul, "score": Score}
+    try:
+        typed = {
+            name: constructors[question["type"]](
+                **{key: value for key, value in question.items() if key != "type"}
+            )
+            for name, question in questions.items()
+        }
+        with TypeSafeClient(model=model) as client:
+            response = client.system_one(state=state, questions=typed)
+        answers = {}
+        for name, question in questions.items():
+            kind = question["type"]
+            obj = getattr(response, {"choice": "choices", "noul": "nouls", "score": "scores"}[kind])[name]
+            fields = {
+                "choice": ("choice", "confidence", "probabilities"),
+                "noul": ("noul",),
+                "score": ("score",),
+            }[kind]
+            answers[name] = {"type": kind, **{field: getattr(obj, field) for field in fields}}
+        return _normalize(answers, questions)
+    except ProviderError:
+        raise
+    except (KeyError, AttributeError, TypeError, ValueError) as exc:
+        raise ProviderError("invalid_response") from exc
+    except Exception as exc:
+        # Avoid leaking SDK errors containing request contents to the log.
+        raise ProviderError("sdk_error") from exc
+
+
 def system_one(state: dict[str, Any], questions: dict[str, Any], provider: str, model: str) -> dict[str, Any]:
-    if provider == "openjev":
-        if model != "openjev":
-            raise ProviderError("invalid_model")
-        return _openjev(state, questions, model)
-    raise ProviderError("invalid_provider")
+    models = {"typesafe": "jev-latest", "openjev": "openjev"}
+    if provider not in models:
+        raise ProviderError("invalid_provider")
+    if model != models[provider]:
+        raise ProviderError("invalid_model")
+    if provider == "typesafe":
+        return _typesafe(state, questions, model)
+    return _openjev(state, questions, model)
