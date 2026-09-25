@@ -16,11 +16,11 @@ python3 -m venv .venv
 cp config.example.yaml config.yaml
 ```
 
-The complete requirements include the TypeSafe SDK; if you will **only use OpenJEV**, `.venv/bin/pip install pyyaml` is sufficient. The OpenJEV adapter uses Python's standard HTTP library; it does not import the SDK. Keep `config.yaml` and credentials out of Git.
+`requirements.txt` installs only `pyyaml`; the default OpenJEV adapter uses Python's standard-library HTTP client. [OpenJEV's quickstart](https://openjev.sh/docs) says **"No SDK required. Use any HTTP client."** This is not a claim that no third-party SDK exists anywhere: the four referenced official pages do not document an OpenJEV SDK or require one. Do **not** install `typesafe-sdk` to call OpenJEV. Keep `config.yaml` and credentials out of Git.
 
-Set `OPENJEV_API_KEY` in the **router process environment**, not in a chat message, command argument, JSON state, or committed file. Use a secure secret facility if your Bot environment provides one. The Bot's cloud computer and your local terminal have separate environments. If the Bot cannot access a secure runtime key, do not ask it to paste the key into chat: run the router in a trusted environment with access to the key instead.
+Set `OPENJEV_API_KEY` in the **router process environment**, not in a chat message, command argument, JSON state, or committed file. Use a secure secret facility if your Bot environment provides one. The Bot's cloud computer and your local terminal have separate environments. If the Bot cannot access a secure runtime key, do not ask it to paste the key into chat: run the router in a trusted environment with access to the key instead. Do not paste raw private task content into process arguments either: CLI arguments and `scripts/dry_run.py` output may expose task content. Use only public/redacted task summaries until a safer transport is implemented.
 
-`config.yaml` copied from the example uses `provider: openjev`, `mode: shadow`, and the `openjev` model alias. No TypeSafe key is needed for this path. For the optional TypeSafe path, set `provider: typesafe`, omit `model` (or use `jev-latest`), install the full requirements and provide `TYPESAFE_API_KEY` in that process environment. Provider/model mismatches fail without a provider request; failures never switch providers automatically.
+`config.yaml` copied from the example uses `provider: openjev`, `mode: shadow`, and the `openjev` model alias. No TypeSafe key is needed for this path. For the optional TypeSafe path, set `provider: typesafe`, omit `model` (or use `jev-latest`), separately install `typesafe-sdk` in the same environment and provide `TYPESAFE_API_KEY` in that process environment. Provider/model mismatches fail without a provider request; failures never switch providers automatically.
 
 ## 2. Verify locally on that computer
 
@@ -48,7 +48,7 @@ Only after testing representative tasks and comparing actions, latency, failures
 
 ## What the router does and does not do
 
-- OpenJEV sends `state` and five independent `questions` via `POST https://api.openjev.sh/v1/systemone`, using a server-side Bearer key, and reads `answers`. Its public `openjev` model is a moving alias. See the [official OpenJEV API reference](https://openjev.sh/docs/advanced).
+- OpenJEV sends `state` and five independent `questions` via `POST https://api.openjev.sh/v1/systemone`, using a server-side Bearer key, and reads `answers`. Its public `openjev` model is a moving alias. Each question is an independent judgment against the same state, not a sequential chain; Choice returns a label, probabilities and confidence, Score can be fractional, and Noul is a yes probability (not a midpoint intensity). Confidence is not a correctness guarantee. See the [quickstart](https://openjev.sh/docs), [advanced reference](https://openjev.sh/docs/advanced), [use cases](https://openjev.sh/use-cases), and [full text reference](https://openjev.sh/llm.txt).
 - The optional TypeSafe adapter uses the [official Python SDK](https://docs.typesafe.ai/sdk/python.md). Only the selected provider's environment key is read.
 - The router returns `reuse_cache`, `stop_retry`, `run_deterministic`, `chat_only`, `research_capped`, `allow_subagent`, `ask_human`, or `proceed_full`. It does **not** perform research, clicks, payments, sends, account changes, or human approval. The [skill](skill/jev-usage-router.SKILL.md) explains how to handle these actions; normal confirmation rules still apply.
 - Missing keys, invalid answers and exhausted provider errors yield `proceed_full` with `jev_used: false`. OpenJEV retries 429/503 and network failures once, honors numeric `Retry-After` up to five seconds, and does not retry 401/422. The TypeSafe SDK handles its own retries, including 429/529.

@@ -2,7 +2,7 @@
 # Kill switch: enabled: false, or include "bypass jev" in the request state.
 enabled: true
 # openjev (default): public HTTP API with OPENJEV_API_KEY
-# typesafe (optional): official SDK with TYPESAFE_API_KEY
+# typesafe (optional): install typesafe-sdk separately; use TYPESAFE_API_KEY
 provider: openjev
 # Omit model to use openjev or jev-latest for the selected provider.
 # model: openjev
