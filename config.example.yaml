@@ -1,7 +1,10 @@
 # Copy this file to config.yaml and edit locally.
 # Kill switch: enabled: false, or include "bypass jev" in the request state.
 enabled: true
-model: jev-latest
+# OpenJEV public HTTP API; set OPENJEV_API_KEY in the environment.
+provider: openjev
+# The default model is openjev; omit model unless needed.
+# model: openjev
 
 # shadow logs advice; active requires the Grok Bot skill to honor route.action.
 mode: shadow  # shadow | active

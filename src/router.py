@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.config import load_config, resolve_log_path
-from src.jev_client import system_one
+from src.jev_client import ProviderError, system_one
 from src.logger import log_run
 
 
@@ -31,15 +31,14 @@ def route_task(state: dict[str, Any]) -> dict[str, Any]:
             "jev_used": False,
             "details": {},
         }
-        log_run(log_path, {"event": "route", "state_goal": state.get("goal"), **out})
+        log_run(log_path, {"event": "route", **out})
         return out
 
     # Keep the kill-switch path dependency-free so it works during incidents.
-    from typesafe_sdk import Choice, Noul, Score
-
     thr = cfg.get("thresholds") or {}
     limits = cfg.get("limits") or {}
-    model = cfg.get("model") or "jev-latest"
+    provider = cfg.get("provider", "openjev")
+    model = cfg.get("model") or "openjev"
 
     # Normalize state for Jev
     jstate = {
@@ -54,7 +53,8 @@ def route_task(state: dict[str, Any]) -> dict[str, Any]:
     }
 
     questions = {
-        "intent": Choice(
+        "intent": dict(
+            type="choice",
             instructions="What kind of work does this request mainly need?",
             criteria={
                 "chat": "Short answer or conversation; no tools needed",
@@ -66,16 +66,20 @@ def route_task(state: dict[str, Any]) -> dict[str, Any]:
                 "account": "Send, publish, pay, delete, change permissions",
             },
         ),
-        "reuse_cache": Noul(
+        "reuse_cache": dict(
+            type="noul",
             instructions="Is there already a fresh enough cached result that should be reused instead of doing new heavy work?"
         ),
-        "needs_subagent": Noul(
+        "needs_subagent": dict(
+            type="noul",
             instructions="Does this clearly need an extra specialized bot (research/browser/coding) beyond one Grok Bot turn?"
         ),
-        "stop_retry": Noul(
+        "stop_retry": dict(
+            type="noul",
             instructions="Given prior_error and same_error_count, should we STOP retrying the same approach?"
         ),
-        "complexity": Score(
+        "complexity": dict(
+            type="score",
             instructions="How much Grok Bot effort is justified?",
             criteria=[
                 "Trivial — one step or cached",
@@ -85,18 +89,28 @@ def route_task(state: dict[str, Any]) -> dict[str, Any]:
         ),
     }
 
-    result = system_one(jstate, questions, model=model)
-    intent = result.choices["intent"]
-    reuse = result.nouls["reuse_cache"]
-    sub = result.nouls["needs_subagent"]
-    stop = result.nouls["stop_retry"]
-    complexity = result.scores["complexity"]
+    try:
+        if provider != "openjev":
+            raise ProviderError("invalid_provider")
+        if model != "openjev":
+            raise ProviderError("invalid_model")
+        result = system_one(jstate, questions, provider=provider, model=model)
+    except ProviderError as exc:
+        out = {
+            "action": "proceed_full",
+            "reason": "jev unavailable; normal Grok Bot path",
+            "mode": cfg.get("mode"),
+            "jev_used": False,
+            "details": {"provider": str(provider), "error": exc.category},
+        }
+        log_run(log_path, {"event": "route_error", "action": out["action"], "provider": str(provider), "error": exc.category})
+        return out
 
-    reuse_n = float(reuse.noul)
-    sub_n = float(sub.noul)
-    stop_n = float(stop.noul)
+    reuse_n = result["reuse_cache"]
+    sub_n = result["needs_subagent"]
+    stop_n = result["stop_retry"]
     # Score 0..2 → normalize
-    comp = float(complexity.score) / 2.0
+    comp = result["complexity"] / 2.0
 
     action = "proceed_full"
     reason = "default full Grok Bot work"
@@ -107,31 +121,32 @@ def route_task(state: dict[str, Any]) -> dict[str, Any]:
     elif jstate["same_error_count"] >= int(limits.get("max_retries_same_error", 1)) and stop_n >= 0.55:
         action = "stop_retry"
         reason = f"stop_retry noul={stop_n:.2f} same_error_count={jstate['same_error_count']}"
-    elif intent.choice == "lookup" and float(intent.confidence) >= float(thr.get("min_choice_confidence", 0.55)):
+    elif result["intent"] == "lookup" and result["intent_confidence"] >= float(thr.get("min_choice_confidence", 0.55)):
         action = "run_deterministic"
         reason = "intent=lookup"
-    elif intent.choice == "chat" and float(intent.confidence) >= float(thr.get("min_choice_confidence", 0.55)):
+    elif result["intent"] == "chat" and result["intent_confidence"] >= float(thr.get("min_choice_confidence", 0.55)):
         action = "chat_only"
         reason = "intent=chat"
-    elif intent.choice == "account":
+    elif result["intent"] == "account":
         action = "ask_human"
         reason = "account/irreversible class — require approval"
     elif sub_n >= float(thr.get("subagent_min", 0.75)):
         action = "allow_subagent"
         reason = f"needs_subagent noul={sub_n:.2f}"
-    elif intent.choice in {"research", "browser"}:
+    elif result["intent"] in {"research", "browser"}:
         action = "research_capped"
         reason = f"cap sources at {limits.get('max_browser_sources', 5)}"
 
     details = {
-        "intent": intent.choice,
-        "intent_confidence": round(float(intent.confidence), 4),
-        "intent_probs": {k: round(float(v), 4) for k, v in (intent.probabilities or {}).items()},
+        "intent": result["intent"],
+        "intent_confidence": round(result["intent_confidence"], 4),
+        "intent_probs": {k: round(float(v), 4) for k, v in result["intent_probs"].items()},
         "reuse_cache": round(reuse_n, 4),
         "needs_subagent": round(sub_n, 4),
         "stop_retry": round(stop_n, 4),
         "complexity_0_1": round(comp, 4),
         "max_browser_sources": int(limits.get("max_browser_sources", 5)),
+        "provider": provider,
     }
 
     out = {
@@ -149,7 +164,7 @@ def route_task(state: dict[str, Any]) -> dict[str, Any]:
         log_path,
         {
             "event": "route",
-            "goal": jstate["goal"][:300],
+            "provider": provider,
             "action": action,
             "reason": reason,
             "mode": cfg.get("mode"),
