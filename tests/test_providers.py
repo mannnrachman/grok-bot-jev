@@ -2,7 +2,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
+import sys
 from unittest.mock import patch
 from urllib.error import HTTPError
 
@@ -70,12 +71,51 @@ class ProviderTests(unittest.TestCase):
             with self.assertRaisesRegex(jev_client.ProviderError, "missing_api_key"):
                 jev_client.system_one({}, QUESTIONS, "openjev", "openjev")
 
-    def test_reject_other_provider_and_model_before_request(self):
-        with patch.dict("os.environ", {"OPENJEV_API_KEY": "test"}), patch.object(jev_client, "urlopen") as call:
-            for provider, model, category in (("typesafe", "jev-latest", "invalid_provider"), ("openjev", "jev-latest", "invalid_model")):
+    def test_provider_models_before_request(self):
+        with patch.dict("os.environ", {"OPENJEV_API_KEY": "test", "TYPESAFE_API_KEY": "test"}), patch.object(jev_client, "urlopen") as call:
+            for provider, model, category in (("unknown", "openjev", "invalid_provider"), ("openjev", "jev-latest", "invalid_model"), ("typesafe", "openjev", "invalid_model")):
                 with self.subTest(provider=provider, model=model), self.assertRaisesRegex(jev_client.ProviderError, category):
                     jev_client.system_one({}, QUESTIONS, provider, model)
             call.assert_not_called()
+
+    def test_typesafe_adapter_matches_openjev_contract(self):
+        sdk = ModuleType("typesafe_sdk")
+
+        class Question:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+
+        class Client:
+            def __init__(self, model):
+                self.model = model
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def system_one(self, state, questions):
+                self_outer.assertEqual(self.model, "jev-latest")
+                self_outer.assertEqual(set(questions), set(QUESTIONS))
+                for name, question in questions.items():
+                    self_outer.assertEqual(question.instructions, QUESTIONS[name]["instructions"])
+                    if "criteria" in QUESTIONS[name]:
+                        self_outer.assertEqual(question.criteria, QUESTIONS[name]["criteria"])
+                payload = answers()
+                return SimpleNamespace(
+                    choices={"intent": SimpleNamespace(**payload["intent"])},
+                    nouls={name: SimpleNamespace(**payload[name]) for name in ("reuse_cache", "needs_subagent", "stop_retry")},
+                    scores={"complexity": SimpleNamespace(**payload["complexity"])},
+                )
+
+        self_outer = self
+        sdk.Choice = sdk.Noul = sdk.Score = Question
+        sdk.TypeSafeClient = Client
+        with patch.dict(sys.modules, {"typesafe_sdk": sdk}), patch.dict("os.environ", {"TYPESAFE_API_KEY": "test"}), patch.object(jev_client, "urlopen") as http:
+            result = jev_client.system_one({"goal": "hi"}, QUESTIONS, "typesafe", "jev-latest")
+            http.assert_not_called()
+        self.assertEqual(result, jev_client._normalize(answers(), QUESTIONS))
 
     def test_openjev_http_failures(self):
         with patch.dict("os.environ", {"OPENJEV_API_KEY": "test"}):
