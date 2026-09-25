@@ -13,7 +13,7 @@ Grok Bot wakes and loads the skill
     +--> kill switch / bypass marker? ---- yes ---> normal Grok Bot path
     |
     v
-TypeSafe Jev system_one(state, questions)
+OpenJEV HTTP systemone(state, questions)
     |
     v
 router policy: cache | stop | deterministic | chat | capped research |
@@ -23,7 +23,7 @@ router policy: cache | stop | deterministic | chat | capped research |
 Grok Bot executes the action (active) or treats it as advice (shadow)
 ```
 
-The Python router normalizes state, defines the Jev choice/noul/score questions, applies thresholds and limits, and appends a JSONL decision record. The API key is read only from `TYPESAFE_API_KEY` in the process environment.
+The Python router normalizes state, defines five provider-neutral choice/noul/score questions, applies thresholds and limits, and appends a JSONL decision record without the task goal. `provider: openjev` uses stdlib HTTP, `OPENJEV_API_KEY`, and model `openjev`. Other provider/model settings fall back without making a provider request. OpenJEV receives explicit state plus independent questions and returns `answers` keyed by question ID. Neither provider can reference a sibling question's answer in the same request. Credentials are read from the process environment only.
 
 ## What works
 
@@ -40,4 +40,4 @@ The Python router normalizes state, defines the Jev choice/noul/score questions,
 
 ## Failure behavior
 
-If the router is disabled, bypassed, or unavailable, the safe integration fallback is to return to the normal Grok Bot path rather than inventing a decision. Account and irreversible actions still require human confirmation.
+If the router is disabled, bypassed, or unavailable, the integration returns `proceed_full` with `jev_used: false` to follow the normal Grok Bot path; it does not send state to another provider. Account and irreversible actions still require human confirmation independently of this router. OpenJEV HTTP retries 429/503 or network errors once (bounded delay and numeric Retry-After). Authentication/validation failures (401/422), invalid JSON and invalid answers are not retried. Logs contain only action, provider, error category and derived signals; do not put sensitive state in a request.
