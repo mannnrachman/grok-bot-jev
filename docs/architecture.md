@@ -23,7 +23,7 @@ router policy: cache | stop | deterministic | chat | capped research |
 Grok Bot executes the action (active) or treats it as advice (shadow)
 ```
 
-The Python router normalizes state, defines five provider-neutral choice/noul/score questions, applies thresholds and limits, and appends a JSONL decision record without the task goal. `provider: typesafe` (default) uses the official SDK, `TYPESAFE_API_KEY`, and `jev-latest`; `provider: openjev` uses stdlib HTTP, `OPENJEV_API_KEY`, and `openjev`. Invalid provider/model combinations fall back without making a provider request. OpenJEV receives explicit state plus independent questions and returns `answers` keyed by question ID. Neither provider can reference a sibling question's answer in the same request. Credentials are read from the process environment only.
+The Python router normalizes state, defines five provider-neutral choice/noul/score questions, applies thresholds and limits, and appends a JSONL decision record without the task goal. `provider: openjev` (default) uses stdlib HTTP, `OPENJEV_API_KEY`, and `openjev`; optional `provider: typesafe` uses the official SDK, `TYPESAFE_API_KEY`, and `jev-latest`. Invalid provider/model combinations fall back without making a provider request. OpenJEV receives explicit state plus independent questions and returns `answers` keyed by question ID. Neither provider can reference a sibling question's answer in the same request. Credentials are read from the process environment only.
 
 ## What works
 

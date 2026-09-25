@@ -1,6 +1,6 @@
 # Jev Usage Router for Grok Bot
 
-Use Jev via the configured TypeSafe SDK or OpenJEV HTTP provider as a cheap decision layer before expensive work. This skill is a policy and integration recipe, not a hidden system hook.
+Use OpenJEV HTTP by default, or the optional TypeSafe SDK, as a decision layer before expensive work. This file is a recipe for creating a Grok Bot skill, not an automatically installed skill or hidden system hook. Follow the [setup guide](../README.md) first: the Python repo, config, and selected provider's key must exist on the computer that actually executes the router.
 
 ## Workflow
 
@@ -20,8 +20,8 @@ Use Jev via the configured TypeSafe SDK or OpenJEV HTTP provider as a cheap deci
 }
 ```
 
-3. Invoke the installed router with that state and read the returned `action`, `reason`, `mode`, and `details`.
-4. In `shadow` mode, record the recommendation but continue according to normal Grok Bot judgment. In `active` mode, honor the actions below.
+3. With permission to execute commands on the configured computer, run `.venv/bin/python -m src.cli '<json state>'` from the cloned repository directory. Pass only redacted task context, never a credential or a whole private conversation. The command prints JSON with `action`, `reason`, `mode`, and `details`. If the repo, execution access, or selected provider key is unavailable, report the integration failure and continue normally; do not pretend a live routing result exists.
+4. In `shadow` mode, report the recommendation but continue according to normal Grok Bot judgment. In `active` mode, honor the actions below. Verify the user's actual intent and separate approval rules before any external action.
 
 ## Action policy in active mode
 
@@ -38,4 +38,4 @@ Never treat a Jev result as permission to reveal secrets or bypass a separate sa
 
 ## Honest integration limits
 
-Grok Bot has to wake and invoke this router; this skill provides no pre-wake hook and cannot reduce the cost of waking the bot. Shadow mode is advisory. Active mode is enforceable only insofar as the Grok Bot skill runtime follows this policy. Jev can misclassify or be unavailable, so preserve a safe fallback and use the kill switch when needed. `provider: typesafe` reads `TYPESAFE_API_KEY`; `provider: openjev` reads `OPENJEV_API_KEY`. The TypeSafe SDK is not imported for OpenJEV or bypass. Invalid provider/model settings fall back without making a request. Never auto-switch providers on failure. Missing credentials, API errors, or malformed answers produce `proceed_full` with `jev_used: false`, not authorization for irreversible work; normal confirmation rules still apply. Begin with `shadow` and compare decisions before enabling `active`.
+Grok Bot has to wake and invoke this router; this skill provides no pre-wake hook and cannot reduce the cost of waking the bot. Shadow mode is advisory. Active mode is enforceable only insofar as the Grok Bot skill runtime follows this policy. Jev can misclassify or be unavailable, so preserve a safe fallback and use the kill switch when needed. `provider: openjev` (default) reads `OPENJEV_API_KEY`; optional `provider: typesafe` reads `TYPESAFE_API_KEY`. The TypeSafe SDK is not imported for OpenJEV or bypass. Invalid provider/model settings fall back without making a request. Never auto-switch providers on failure. Missing credentials, API errors, or malformed answers produce `proceed_full` with `jev_used: false`, not authorization for irreversible work; normal confirmation rules still apply. Begin with `shadow` and compare decisions before enabling `active`.
