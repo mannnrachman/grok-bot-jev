@@ -2,6 +2,8 @@
 
 This fork asks [OpenJEV](https://openjev.sh/docs) for a small set of routing decisions before Grok Bot does expensive work. The router suggests actions; it does not replace Grok Bot's model or execute the task. **Start with OpenJEV.** TypeSafe is an optional alternative you can select later; the two providers are never called together and there is no automatic switch on failure.
 
+**Independent project:** this community fork is not affiliated with, endorsed by, or maintained by OpenJEV. Links to OpenJEV documentation describe the external API, not a partnership or an official Grok Bot integration.
+
 ![Grok Bot + Jev dashboard](media/jev-grok-bot-dashboard.png)
 
 ## Quick start: OpenJEV

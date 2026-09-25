@@ -1,6 +1,6 @@
 # Jev usage router for Grok Bot
 
-This is a recipe for a Grok Bot skill, **not** an automatically installed skill. Follow the [OpenJEV quick start](../README.md) before using it. OpenJEV is the default provider; TypeSafe is an optional alternative configured in the router, not a second service to call. Grok Bot must have access to the repo and the selected provider's key in the router process environment.
+This independent community project is not affiliated with, endorsed by, or maintained by OpenJEV. This is a recipe for a Grok Bot skill, **not** an automatically installed skill. Follow the [OpenJEV quick start](../README.md) before using it. OpenJEV is the default provider; TypeSafe is an optional alternative configured in the router, not a second service to call. Grok Bot must have access to the repo and the selected provider's key in the router process environment.
 
 ## Before each expensive task
 

@@ -1,5 +1,7 @@
 # Router architecture
 
+This is an independent community integration, not affiliated with, endorsed by, or maintained by OpenJEV. OpenJEV documentation is linked solely as the external API reference.
+
 ## One provider per request
 
 Grok Bot prepares a short redacted task state and invokes `src.cli`. The router checks `enabled` and bypass markers, then chooses **one** configured provider:
